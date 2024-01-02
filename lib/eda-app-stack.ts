@@ -10,6 +10,7 @@ import * as subs from "aws-cdk-lib/aws-sns-subscriptions";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 
+
 import { Construct } from "constructs";
 // import * as sqs from 'aws-cdk-lib/aws-sqs';
 
@@ -26,22 +27,18 @@ export class EDAAppStack extends cdk.Stack {
       receiveMessageWaitTime: cdk.Duration.seconds(10),
     });
 
-    const mailerQ = new sqs.Queue(this, "mailer-queue", {
-      receiveMessageWaitTime: cdk.Duration.seconds(10),
-    });
+
 
     const newImageTopic = new sns.Topic(this, "NewImageTopic", {
       displayName: "New Image topic",
     }); 
 
-     // Tables 
-     const imagesTable = new dynamodb.Table(this, "ImagesTable", {
+    const imagesTable = new dynamodb.Table(this, "imagesTable", {
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
-      partitionKey: { name: "imageName", type: dynamodb.AttributeType.STRING },
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
-      tableName: "Images",
-    });
-
+      partitionKey: { name: "ImageName", type: dynamodb.AttributeType.STRING },
+      removalPolicy: cdk.RemovalPolicy.DESTROY,                                 
+      tableName: "Images",                                                     
+    })
 
     // Lambda functions
 
@@ -56,13 +53,10 @@ export class EDAAppStack extends cdk.Stack {
         memorySize: 128,
         environment: {
           TABLE_NAME: imagesTable.tableName,
-          REGION: "eu-west-1",
-        }
+          REGION: 'eu-west-1',
+        },
       }
     );
-
-
-    imagesTable.grantReadWriteData(processImageFn)
 
     const mailerFn = new lambdanode.NodejsFunction(this, "mailer-function", {
       runtime: lambda.Runtime.NODEJS_16_X,
@@ -83,7 +77,6 @@ export class EDAAppStack extends cdk.Stack {
     new subs.SqsSubscription(imageProcessQueue)
   );
 
-  newImageTopic.addSubscription(new subs.SqsSubscription(mailerQ));
 
 
     const newImageEventSource = new events.SqsEventSource(imageProcessQueue, {
@@ -91,21 +84,18 @@ export class EDAAppStack extends cdk.Stack {
       maxBatchingWindow: cdk.Duration.seconds(10),
     });
 
-    const newImageMailEventSource = new events.SqsEventSource(mailerQ, {
-      batchSize: 5,
-      maxBatchingWindow: cdk.Duration.seconds(10),
-    }); 
+  
 
     processImageFn.addEventSource(newImageEventSource);
 
-    mailerFn.addEventSource(newImageMailEventSource);
-
+    newImageTopic.addSubscription(new subs.LambdaSubscription(mailerFn)) 
     
 
 
     // Permissions
 
     imagesBucket.grantRead(processImageFn);
+    imagesTable.grantReadWriteData(processImageFn)
 
     mailerFn.addToRolePolicy(
       new iam.PolicyStatement({

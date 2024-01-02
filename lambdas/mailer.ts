@@ -1,4 +1,4 @@
-import { SQSHandler } from "aws-lambda";
+import { SNSHandler } from "aws-lambda";
 // import AWS from 'aws-sdk';
 import { SES_EMAIL_FROM, SES_EMAIL_TO, SES_REGION } from "../env";
 import {
@@ -8,7 +8,7 @@ import {
 } from "@aws-sdk/client-ses";
 
 if (!SES_EMAIL_TO || !SES_EMAIL_FROM || !SES_REGION) {
-  throw new Error(
+  throw new Error(  
     "Please add the SES_EMAIL_TO, SES_EMAIL_FROM and SES_REGION environment variables in an env.js file located in the root directory"
   );
 }
@@ -21,11 +21,10 @@ type ContactDetails = {
 
 const client = new SESClient({ region: "eu-west-1" });
 
-export const handler: SQSHandler = async (event: any) => {
+export const handler: SNSHandler = async (event: any) => {
   console.log("Event ", event);
-  for (const record of event.Records) {
-    const recordBody = JSON.parse(record.body);
-    const snsMessage = JSON.parse(recordBody.Message);
+  for (const record of event.Records) { 
+    const snsMessage = JSON.parse(record.Sns.Message);
 
     if (snsMessage.Records) {
       console.log("Record body ", JSON.stringify(snsMessage));
