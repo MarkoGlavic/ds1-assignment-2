@@ -48,6 +48,10 @@ export class EDAAppStack extends cdk.Stack {
       displayName: "New Image topic",
     }); 
 
+    const secondTopic = new sns.Topic(this, "secondTopic", {
+      displayName: "Second Topic"
+    })
+
     const imagesTable = new dynamodb.Table(this, "imagesTable", {
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       partitionKey: { name: "ImageName", type: dynamodb.AttributeType.STRING },
@@ -81,6 +85,21 @@ export class EDAAppStack extends cdk.Stack {
       }
     );
 
+    const deleteImageFn = new lambdanode.NodejsFunction(
+      this,
+      "delete-image",
+      {
+        // architecture: lambda.Architecture.ARM_64,
+        runtime: lambda.Runtime.NODEJS_18_X,
+        entry: `${__dirname}/../lambdas/deleteImage.ts`,
+        timeout: cdk.Duration.seconds(15),
+        memorySize: 128,
+        environment: {
+          TABLE_NAME: imagesTable.tableName,
+          REGION: 'eu-west-1',
+        },
+      }
+    );
     const mailerFn = new lambdanode.NodejsFunction(this, "mailer-function", {
       runtime: lambda.Runtime.NODEJS_16_X,
       memorySize: 1024,
@@ -98,11 +117,21 @@ export class EDAAppStack extends cdk.Stack {
       new s3n.SnsDestination(newImageTopic)  // Changed
   );
 
+  imagesBucket.addEventNotification(
+    s3.EventType.OBJECT_REMOVED,
+    new s3n.SnsDestination(secondTopic) //notification for second topic
+  )
+
 
 
   newImageTopic.addSubscription(
     new subs.SqsSubscription(imageProcessQueue)
   );
+
+  secondTopic.addSubscription(
+    new subs.LambdaSubscription(deleteImageFn)
+    );
+
 
 
 
@@ -122,6 +151,8 @@ export class EDAAppStack extends cdk.Stack {
     newImageTopic.addSubscription(new subs.LambdaSubscription(mailerFn)) 
     
     failedMailerFn.addEventSource(failedImageEventSource)
+
+    imagesTable.grantReadWriteData(deleteImageFn)
 
 
     // Permissions
