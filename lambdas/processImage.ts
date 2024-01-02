@@ -1,5 +1,8 @@
 /* eslint-disable import/extensions, import/no-absolute-path */
 import { SQSHandler } from "aws-lambda";
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
+
 // import { sharp } from "/opt/nodejs/sharp-utils";
 import {
   GetObjectCommand,
@@ -10,6 +13,8 @@ import {
 } from "@aws-sdk/client-s3";
 
 const s3 = new S3Client();
+const ddbDocClient = createDDbDocClient();
+
 
 export const handler: SQSHandler = async (event) => {
   console.log("Event ", event);
@@ -34,8 +39,38 @@ export const handler: SQSHandler = async (event) => {
           console.log(`Unsupported image type: ${imageType}`);
           throw new Error("Unsupported image type: ${imageType. ");
         }
-        // process image upload 
+        console.log(srcKey)
+        try{
+          const commandOutput = await ddbDocClient.send(
+          new PutCommand({
+            TableName: "Images",
+            Item:{imageName: srcKey}
+          })
+        );
+        console.log(commandOutput)
+
+      }
+        catch (error) {
+          console.log(error);
+        }
+
+     
       }
     }
   }
 };
+
+
+function createDDbDocClient() {
+  const ddbClient = new DynamoDBClient({ region: process.env.REGION });
+  const marshallOptions = {
+    convertEmptyValues: true,
+    removeUndefinedValues: true,
+    convertClassInstanceToMap: true,
+  };
+  const unmarshallOptions = {
+    wrapNumbers: false,
+  };
+  const translateConfig = { marshallOptions, unmarshallOptions };
+  return DynamoDBDocumentClient.from(ddbClient, translateConfig);
+}
